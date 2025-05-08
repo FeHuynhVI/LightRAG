@@ -22,7 +22,6 @@ from lightrag.constants import (
     DEFAULT_LOG_BACKUP_COUNT,
     DEFAULT_LOG_FILENAME,
 )
-from lightrag.api.config import get_env_value
 
 # Use TYPE_CHECKING to avoid circular imports
 if TYPE_CHECKING:
@@ -164,10 +163,8 @@ def setup_logger(
         os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
 
         # Get log file max size and backup count from environment variables
-        log_max_bytes = get_env_value("LOG_MAX_BYTES", DEFAULT_LOG_MAX_BYTES, int)
-        log_backup_count = get_env_value(
-            "LOG_BACKUP_COUNT", DEFAULT_LOG_BACKUP_COUNT, int
-        )
+        log_max_bytes = DEFAULT_LOG_MAX_BYTES
+        log_backup_count = DEFAULT_LOG_BACKUP_COUNT
 
         try:
             # Add file handler

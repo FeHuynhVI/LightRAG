@@ -24,7 +24,6 @@ from lightrag.constants import (
     DEFAULT_MAX_TOKEN_SUMMARY,
     DEFAULT_FORCE_LLM_SUMMARY_ON_MERGE,
 )
-from lightrag.api.config import get_env_value
 
 from lightrag.kg import (
     STORAGES,
@@ -124,13 +123,11 @@ class LightRAG:
     """Maximum number of entity extraction attempts for ambiguous content."""
 
     summary_to_max_tokens: int = field(
-        default=get_env_value("MAX_TOKEN_SUMMARY", DEFAULT_MAX_TOKEN_SUMMARY, int)
+        default=DEFAULT_MAX_TOKEN_SUMMARY
     )
 
     force_llm_summary_on_merge: int = field(
-        default=get_env_value(
-            "FORCE_LLM_SUMMARY_ON_MERGE", DEFAULT_FORCE_LLM_SUMMARY_ON_MERGE, int
-        )
+        default=DEFAULT_FORCE_LLM_SUMMARY_ON_MERGE
     )
 
     # Text chunking
@@ -253,7 +250,7 @@ class LightRAG:
 
     addon_params: dict[str, Any] = field(
         default_factory=lambda: {
-            "language": get_env_value("SUMMARY_LANGUAGE", "English", str)
+            "language": "English"
         }
     )
 
