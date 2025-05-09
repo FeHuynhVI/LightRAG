@@ -1694,37 +1694,36 @@ class LightRAG:
             chunk_ids = set(related_chunks.keys())
             logger.debug(f"Found {len(chunk_ids)} chunks to delete")
 
-            # TODO: self.entities_vdb.client_storage only works for local storage, need to fix this
-
             # 3. Before deleting, check the related entities and relationships for these chunks
-            for chunk_id in chunk_ids:
+            if len(chunk_ids):
                 # Check entities
-                client_storage = self.entities_vdb.client_storage
-                if inspect.isawaitable(client_storage):
-                    entities_storage = await client_storage
+                entities_client_storage = self.entities_vdb.client_storage
+                if not inspect.isawaitable(entities_client_storage):
+                    entities_storage = entities_client_storage
                 else:
-                    entities_storage = client_storage
-
-                entities = [
-                    dp
-                    for dp in entities_storage["data"]
-                    if chunk_id in dp.get("source_id")
-                ]
-                logger.debug(f"Chunk {chunk_id} has {len(entities)} related entities")
+                    entities_storage = await entities_client_storage
 
                 rel_client_storage = self.relationships_vdb.client_storage
-
                 if inspect.isawaitable(rel_client_storage):
                     relationships_storage = await self.relationships_vdb.client_storage
                 else:
                     relationships_storage = self.relationships_vdb.client_storage
 
-                relations = [
-                    dp
-                    for dp in relationships_storage["data"]
-                    if chunk_id in dp.get("source_id")
-                ]
-                logger.debug(f"Chunk {chunk_id} has {len(relations)} related relations")
+                for chunk_id in chunk_ids:
+                    entities = [
+                        dp
+                        for dp in entities_storage["data"]
+                        if chunk_id in dp.get("source_id")
+                    ]
+                    logger.debug(f"Chunk {chunk_id} has {len(entities)} related entities")
+
+                    relations = [
+                        dp
+                        for dp in relationships_storage["data"]
+                        if chunk_id in dp.get("source_id")
+                    ]
+                    logger.debug(f"Chunk {chunk_id} has {len(relations)} related relations")
+
             # Continue with the original deletion process...
 
             # 4. Delete chunks from vector database
@@ -1845,13 +1844,13 @@ class LightRAG:
                 f"Updated {len(entities_to_update)} entities and {len(relationships_to_update)} relationships."
             )
 
-            async def process_data(data_type, vdb, chunk_id):
+            async def process_data(data_type, db_storage, chunk_id):
                 # Check data (entities or relationships)
-                vdb_client_storage = vdb.client_storage
-                if not inspect.isawaitable(vdb_client_storage):
-                    storage = vdb_client_storage
+                client_storage = db_storage.client_storage
+                if not inspect.isawaitable(client_storage):
+                    storage = client_storage
                 else:
-                    storage = await vdb_client_storage
+                    storage = await client_storage
 
                 data_with_chunk = [
                     dp
@@ -1873,7 +1872,7 @@ class LightRAG:
                             logger.info(
                                 f"{data_type} {item.get('entity_name', 'N/A')} is deleted because source_id is not exists"
                             )
-                            await vdb.delete_entity(item)
+                            await db_storage.delete_entity(item)
                         else:
                             item["source_id"] = GRAPH_FIELD_SEP.join(new_sources)
                             item_id = item["__id__"]
@@ -1896,7 +1895,7 @@ class LightRAG:
                                 )
 
                     if data_for_vdb:
-                        await vdb.upsert(data_for_vdb)
+                        await db_storage.upsert(data_for_vdb)
                         logger.info(f"Successfully updated {data_type} in vector DB")
 
             # Add verification step
