@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import traceback
 import asyncio
 import configparser
@@ -1698,7 +1699,12 @@ class LightRAG:
             # 3. Before deleting, check the related entities and relationships for these chunks
             for chunk_id in chunk_ids:
                 # Check entities
-                entities_storage = await self.entities_vdb.client_storage
+                client_storage = self.entities_vdb.client_storage
+                if inspect.isawaitable(client_storage):
+                    entities_storage = await client_storage
+                else:
+                    entities_storage = client_storage
+
                 entities = [
                     dp
                     for dp in entities_storage["data"]
@@ -1706,22 +1712,25 @@ class LightRAG:
                 ]
                 logger.debug(f"Chunk {chunk_id} has {len(entities)} related entities")
 
-                # Check relationships
-                relationships_storage = await self.relationships_vdb.client_storage
+                rel_client_storage = self.relationships_vdb.client_storage
+
+                if inspect.isawaitable(rel_client_storage):
+                    relationships_storage = await self.relationships_vdb.client_storage
+                else:
+                    relationships_storage = self.relationships_vdb.client_storage
+
                 relations = [
                     dp
                     for dp in relationships_storage["data"]
                     if chunk_id in dp.get("source_id")
                 ]
                 logger.debug(f"Chunk {chunk_id} has {len(relations)} related relations")
-
             # Continue with the original deletion process...
 
             # 4. Delete chunks from vector database
             if chunk_ids:
                 await self.chunks_vdb.delete(chunk_ids)
                 await self.text_chunks.delete(chunk_ids)
-
             # 5. Find and process entities and relationships that have these chunks as source
             # Get all nodes and edges from the graph storage using storage-agnostic methods
             entities_to_delete = set()
@@ -1838,7 +1847,12 @@ class LightRAG:
 
             async def process_data(data_type, vdb, chunk_id):
                 # Check data (entities or relationships)
-                storage = await vdb.client_storage
+                vdb_client_storage = vdb.client_storage
+                if not inspect.isawaitable(vdb_client_storage):
+                    storage = vdb_client_storage
+                else:
+                    storage = await vdb_client_storage
+
                 data_with_chunk = [
                     dp
                     for dp in storage["data"]
