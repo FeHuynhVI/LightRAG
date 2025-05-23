@@ -13,7 +13,6 @@ from dataclasses import dataclass
 from functools import wraps
 from hashlib import md5
 from typing import Any, Protocol, Callable, TYPE_CHECKING, List
-import xml.etree.ElementTree as ET
 import numpy as np
 from lightrag.prompt import PROMPTS
 from dotenv import load_dotenv
@@ -22,6 +21,38 @@ from lightrag.constants import (
     DEFAULT_LOG_BACKUP_COUNT,
     DEFAULT_LOG_FILENAME,
 )
+
+
+def get_env_value(
+    env_key: str, default: any, value_type: type = str, special_none: bool = False
+) -> any:
+    """
+    Get value from environment variable with type conversion
+
+    Args:
+        env_key (str): Environment variable key
+        default (any): Default value if env variable is not set
+        value_type (type): Type to convert the value to
+        special_none (bool): If True, return None when value is "None"
+
+    Returns:
+        any: Converted value from environment or default
+    """
+    value = os.getenv(env_key)
+    if value is None:
+        return default
+
+    # Handle special case for "None" string
+    if special_none and value == "None":
+        return None
+
+    if value_type is bool:
+        return value.lower() in ("true", "1", "yes", "t", "on")
+    try:
+        return value_type(value)
+    except (ValueError, TypeError):
+        return default
+
 
 # Use TYPE_CHECKING to avoid circular imports
 if TYPE_CHECKING:
@@ -292,6 +323,9 @@ def priority_limit_async_func_call(max_size: int, max_queue_size: int = 1000):
     """
 
     def final_decro(func):
+        # Ensure func is callable
+        if not callable(func):
+            raise TypeError(f"Expected a callable object, got {type(func)}")
         queue = asyncio.PriorityQueue(maxsize=max_queue_size)
         tasks = set()
         initialization_lock = asyncio.Lock()
@@ -714,71 +748,6 @@ def truncate_list_by_token_size(
         if tokens > max_token_size:
             return list_data[:i]
     return list_data
-
-
-def save_data_to_file(data, file_name):
-    with open(file_name, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
-
-
-def xml_to_json(xml_file):
-    try:
-        tree = ET.parse(xml_file)
-        root = tree.getroot()
-
-        # Print the root element's tag and attributes to confirm the file has been correctly loaded
-        print(f"Root element: {root.tag}")
-        print(f"Root attributes: {root.attrib}")
-
-        data = {"nodes": [], "edges": []}
-
-        # Use namespace
-        namespace = {"": "http://graphml.graphdrawing.org/xmlns"}
-
-        for node in root.findall(".//node", namespace):
-            node_data = {
-                "id": node.get("id").strip('"'),
-                "entity_type": node.find("./data[@key='d0']", namespace).text.strip('"')
-                if node.find("./data[@key='d0']", namespace) is not None
-                else "",
-                "description": node.find("./data[@key='d1']", namespace).text
-                if node.find("./data[@key='d1']", namespace) is not None
-                else "",
-                "source_id": node.find("./data[@key='d2']", namespace).text
-                if node.find("./data[@key='d2']", namespace) is not None
-                else "",
-            }
-            data["nodes"].append(node_data)
-
-        for edge in root.findall(".//edge", namespace):
-            edge_data = {
-                "source": edge.get("source").strip('"'),
-                "target": edge.get("target").strip('"'),
-                "weight": float(edge.find("./data[@key='d3']", namespace).text)
-                if edge.find("./data[@key='d3']", namespace) is not None
-                else 0.0,
-                "description": edge.find("./data[@key='d4']", namespace).text
-                if edge.find("./data[@key='d4']", namespace) is not None
-                else "",
-                "keywords": edge.find("./data[@key='d5']", namespace).text
-                if edge.find("./data[@key='d5']", namespace) is not None
-                else "",
-                "source_id": edge.find("./data[@key='d6']", namespace).text
-                if edge.find("./data[@key='d6']", namespace) is not None
-                else "",
-            }
-            data["edges"].append(edge_data)
-
-        # Print the number of nodes and edges found
-        print(f"Found {len(data['nodes'])} nodes and {len(data['edges'])} edges")
-
-        return data
-    except ET.ParseError as e:
-        print(f"Error parsing XML file: {e}")
-        return None
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return None
 
 
 def process_combine_contexts(*context_lists):
